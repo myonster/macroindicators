@@ -265,3 +265,42 @@ def kijun(ticker):
     combo = np.where(df.iloc[-1,7] == 'ON',df.iloc[-1,7] + '(' + df.iloc[-1,6].astype(str) + ')','OFF')
 
     return combo
+
+def cc(ticker):
+
+    ticker= yf.Ticker(ticker)
+    df = ticker.history(period='5Y', interval='1wk')
+
+    # Calculate the components of the Ichimoku Cloud
+    high_prices = df['High']
+    close_prices = df['Close']
+    low_prices = df['Low']
+    
+    # Conversion Line = (9-period high + 9-period low)/2
+    period9_high = high_prices.rolling(window=9).max()
+    period9_low = low_prices.rolling(window=9).min()
+    df['conversion_line'] = (period9_high + period9_low) / 2 
+
+    # Base Line = (26-period high + 26-period low)/2
+    period26_high = high_prices.rolling(window=26).max()
+    period26_low = low_prices.rolling(window=26).min()
+    df['base_line'] = (period26_high + period26_low) / 2 
+
+    # Leading Span A = (Conversion Line + Base Line) / 2
+    df['leading_span_A'] = ((df['conversion_line'] + df['base_line']) / 2).shift(26)
+
+    # Leading Span B = (52-period high + 52-period low)/2
+    period52_high = high_prices.rolling(window=52).max()
+    period52_low = low_prices.rolling(window=52).min()
+    df['leading_span_B'] = ((period52_high + period52_low) / 2).shift(26)
+
+    # Create buy/sell signals based on Leading Span A and Leading Span B interaction
+    df['indicator'] = np.where(df['leading_span_A'] < df['leading_span_B'], 1, 0)
+    df['consecutive'] = df['indicator'].groupby((df['indicator'] != df['indicator'].shift()).cumsum()).transform('size') * df['indicator']
+    df['weekly_ichimoku'] = np.where(df['indicator'] == 1, 'ON', 'OFF')
+    
+    df = df[['Close', 'indicator', 'consecutive', 'weekly_ichimoku']]
+
+    combo = np.where(df.iloc[-1, 3] == 'ON', df.iloc[-1, 3] + '(' + df.iloc[-1, 2].astype(str) + ')', 'OFF')
+
+    return combo
