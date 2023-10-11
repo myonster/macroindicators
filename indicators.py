@@ -225,3 +225,43 @@ def roc(ticker):
     combo = np.where(df.iloc[-1, 3] == 'ON', df.iloc[-1, 3] + '(' + df.iloc[-1, 2].astype(str) + ')', 'OFF')
 
     return combo
+
+
+def kijun(ticker):
+    ticker= yf.Ticker(ticker)
+    df = ticker.history(period='5Y',interval = '1wk')
+
+    #date as column
+    df = df.reset_index()
+    
+    def remove_timezone(dt):
+        return dt.replace(tzinfo=None)
+    
+    df['Date'] = df['Date'].apply(remove_timezone)
+    
+    #Conversion line
+    nine_period_high = df['High'].rolling(window= 9).max()
+    nine_period_low = df['Low'].rolling(window= 9).min()
+    df['conversion'] = (nine_period_high + nine_period_low) /2
+    #base line
+    period26_high = df['High'].rolling(window=26).max()
+    period26_low = df['Low'].rolling(window=26).min()
+    df['base'] = (period26_high + period26_low) / 2
+    #leading span A
+    df['leading_a'] = ((df['conversion'] + df['base']) / 2).shift(26)
+    #leading span B
+    period52_high = df['High'].rolling(window=52).max()
+    period52_low = df['Low'].rolling(window=52).min()
+    df['leading_b'] = ((period52_high + period52_low) / 2).shift(26)
+    
+    df['CloudTop'] = np.where((df['leading_a'] > df['leading_b']),df['leading_a'],df['leading_b'])
+    df['indicator'] = np.where(df['Close']>df['CloudTop'],1,0)
+    df['consecutive'] = df.indicator.groupby((df.indicator != df.indicator.shift()).cumsum()).transform('size') * df.indicator
+    df['Cloud'] = np.where(df['indicator'] == 1,'ON','OFF')
+
+
+    df = df[['Date','Close','leading_a','leading_b','CloudTop','indicator','consecutive','Cloud']]
+
+    combo = np.where(df.iloc[-1,7] == 'ON',df.iloc[-1,7] + '(' + df.iloc[-1,6].astype(str) + ')','OFF')
+
+    return combo
