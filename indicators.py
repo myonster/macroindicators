@@ -132,3 +132,96 @@ def Z_G(ticker,z_limit,g_limit):
     combo = np.where(df.iloc[-1,6] == 'ON',df.iloc[-1,6] + '(' + df.iloc[-1,5].astype(str) + ')','OFF')
     
     return combo
+
+
+
+def cloud(ticker):
+    ticker= yf.Ticker(ticker)
+    df = ticker.history(period='5Y', interval='1wk')
+
+    # Calculate the components of the Ichimoku Cloud
+    high_prices = df['High']
+    close_prices = df['Close']
+    low_prices = df['Low']
+    
+    # Conversion Line = (9-period high + 9-period low)/2
+    period9_high = high_prices.rolling(window=9).max()
+    period9_low = low_prices.rolling(window=9).min()
+    df['conversion_line'] = (period9_high + period9_low) / 2 
+
+    # Base Line = (26-period high + 26-period low)/2
+    period26_high = high_prices.rolling(window=26).max()
+    period26_low = low_prices.rolling(window=26).min()
+    df['base_line'] = (period26_high + period26_low) / 2 
+
+    # Leading Span A = (Conversion Line + Base Line) / 2
+    df['leading_span_A'] = ((df['conversion_line'] + df['base_line']) / 2).shift(26)
+
+    # Leading Span B = (52-period high + 52-period low)/2
+    period52_high = high_prices.rolling(window=52).max()
+    period52_low = low_prices.rolling(window=52).min()
+    df['leading_span_B'] = ((period52_high + period52_low) / 2).shift(26)
+
+    # Lagging Span = Close shifted 26 periods in the past
+    df['lagging_span'] = close_prices.shift(-26)
+
+    # Create buy/sell signals
+    df['indicator'] = np.where((df['conversion_line'] > df['base_line']) & (df['Close'] > df['leading_span_A']) & (df['Close'] > df['leading_span_B']), 1, 0)
+    df['consecutive'] = df.indicator.groupby((df.indicator != df.indicator.shift()).cumsum()).transform('size') * df.indicator
+    df['weekly_ichimoku'] = np.where(df['indicator'] == 1,'ON','OFF')
+    
+    df = df[['Close','indicator','consecutive','weekly_ichimoku']]
+
+    combo = np.where(df.iloc[-1,3] == 'ON',df.iloc[-1,3] + '(' + df.iloc[-1,2].astype(str) + ')','OFF')
+
+    return combo
+
+
+def tenkan(ticker):
+    ticker = yf.Ticker(ticker)
+    df = ticker.history(period='5Y', interval='1wk')
+
+    # Calculate the components of the Ichimoku Cloud
+    high_prices = df['High']
+    close_prices = df['Close']
+    low_prices = df['Low']
+    
+    # Conversion Line = (9-period high + 9-period low)/2
+    period9_high = high_prices.rolling(window=9).max()
+    period9_low = low_prices.rolling(window=9).min()
+    df['conversion_line'] = (period9_high + period9_low) / 2 
+
+    # Base Line = (26-period high + 26-period low)/2
+    period26_high = high_prices.rolling(window=26).max()
+    period26_low = low_prices.rolling(window=26).min()
+    df['base_line'] = (period26_high + period26_low) / 2 
+
+    # Create buy/sell signals based on Conversion Line and Base Line interaction
+    df['indicator'] = np.where(df['conversion_line'] > df['base_line'], 1, -1)
+    df['consecutive'] = df.indicator.groupby((df.indicator != df.indicator.shift()).cumsum()).transform('size') * df.indicator
+    df['conversion_base_interaction'] = np.where(df['indicator'] == 1, 'ON', 'OFF')
+    
+    df = df[['Close', 'indicator', 'consecutive', 'conversion_base_interaction']]
+
+    combo = np.where(df.iloc[-1, 3] == 'ON', df.iloc[-1, 3] + '(' + df.iloc[-1, 2].astype(str) + ')', 'OFF')
+
+    return combo
+
+
+def roc(ticker):
+    ticker = yf.Ticker(ticker)
+    df = ticker.history(period='10Y', interval='1d')
+
+    # Calculate the Rate of Change (ROC)
+    close_prices = df['Close']
+    df['ROC'] = ((close_prices - close_prices.shift(252)) / close_prices.shift(252)) * 100
+    
+    df['indicator'] = np.where(df['ROC'] > 0, 1, -1)
+    df['consecutive'] = df.indicator.groupby((df.indicator != df.indicator.shift()).cumsum()).transform('size') * df.indicator
+    df['rocONOFF'] = np.where(df['indicator'] == 1, 'ON', 'OFF')
+    
+    df = df[['Close', 'indicator', 'consecutive', 'rocONOFF']]
+
+    combo = np.where(df.iloc[-1, 3] == 'ON', df.iloc[-1, 3] + '(' + df.iloc[-1, 2].astype(str) + ')', 'OFF')
+
+    return combo
